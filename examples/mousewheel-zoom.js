@@ -1,6 +1,7 @@
 goog.require('ol.Map');
 goog.require('ol.View');
 goog.require('ol.interaction');
+goog.require('ol.events.condition');
 goog.require('ol.interaction.MouseWheelZoom');
 goog.require('ol.layer.Tile');
 goog.require('ol.source.OSM');
@@ -9,7 +10,8 @@ goog.require('ol.source.OSM');
 var map = new ol.Map({
   interactions: ol.interaction.defaults({mouseWheelZoom: false}).extend([
     new ol.interaction.MouseWheelZoom({
-      constrainResolution: true // force zooming to a integer zoom
+      constrainResolution: true, // force zooming to a integer zoom
+      condition: ol.events.condition.focus // only wheel/trackpad zoom when the map has the focus
     })
   ]),
   layers: [

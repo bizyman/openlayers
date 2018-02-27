@@ -4,6 +4,7 @@ goog.require('ol');
 goog.require('ol.ViewHint');
 goog.require('ol.easing');
 goog.require('ol.events.EventType');
+goog.require('ol.events.condition');
 goog.require('ol.has');
 goog.require('ol.interaction.Interaction');
 goog.require('ol.math');
@@ -55,6 +56,13 @@ ol.interaction.MouseWheelZoom = function(opt_options) {
    * @type {boolean}
    */
   this.constrainResolution_ = options.constrainResolution || false;
+
+  /**
+   * @private
+   * @type {ol.EventsConditionType}
+   */
+  this.condition_ = options.condition ? options.condition :
+    ol.events.condition.always;
 
   /**
    * @private
@@ -119,6 +127,9 @@ ol.inherits(ol.interaction.MouseWheelZoom, ol.interaction.Interaction);
  * @api
  */
 ol.interaction.MouseWheelZoom.handleEvent = function(mapBrowserEvent) {
+  if (!this.condition_(mapBrowserEvent)) {
+    return true;
+  }
   var type = mapBrowserEvent.type;
   if (type !== ol.events.EventType.WHEEL && type !== ol.events.EventType.MOUSEWHEEL) {
     return true;
