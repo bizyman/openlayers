@@ -1,7 +1,7 @@
-import EventType from '../../../../../src/ol/pointer/EventType.js';
 import Map from '../../../../../src/ol/Map.js';
-import MousePosition from '../../../../../src/ol/control/MousePosition.js';
 import View from '../../../../../src/ol/View.js';
+import MousePosition from '../../../../../src/ol/control/MousePosition.js';
+import EventType from '../../../../../src/ol/pointer/EventType.js';
 import {
   clearUserProjection,
   fromLonLat,
@@ -51,9 +51,8 @@ describe('ol/control/MousePosition', function () {
       });
     });
     afterEach(function () {
+      disposeMap(map);
       clearUserProjection();
-      map.dispose();
-      document.body.removeChild(target);
     });
 
     function simulateEvent(type, x, y) {

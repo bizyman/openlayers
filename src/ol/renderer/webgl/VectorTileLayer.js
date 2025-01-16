@@ -2,28 +2,55 @@
  * @module ol/renderer/webgl/VectorTileLayer
  */
 import EventType from '../../events/EventType.js';
-import TileGeometry from '../../webgl/TileGeometry.js';
+import {getIntersection} from '../../extent.js';
 import VectorStyleRenderer from '../../render/webgl/VectorStyleRenderer.js';
-import WebGLBaseTileLayerRenderer, {Uniforms} from './TileLayerBase.js';
-import {
-  create as createMat4,
-  fromTransform as mat4FromTransform,
-} from '../../vec/mat4.js';
+import {breakDownFlatStyle} from '../../render/webgl/utils.js';
 import {
   create as createTransform,
   makeInverse as makeInverseTransform,
   multiply as multiplyTransform,
   setFromArray as setFromTransform,
 } from '../../transform.js';
-import {getIntersection} from '../../extent.js';
+import {
+  create as createMat4,
+  fromTransform as mat4FromTransform,
+} from '../../vec/mat4.js';
+import WebGLArrayBuffer from '../../webgl/Buffer.js';
+import {AttributeType} from '../../webgl/Helper.js';
+import WebGLRenderTarget from '../../webgl/RenderTarget.js';
+import {ShaderBuilder} from '../../webgl/ShaderBuilder.js';
+import TileGeometry from '../../webgl/TileGeometry.js';
+import {parseLiteralStyle} from '../../webgl/styleparser.js';
+import {ELEMENT_ARRAY_BUFFER, STATIC_DRAW} from '../../webgl.js';
+import WebGLBaseTileLayerRenderer, {
+  Uniforms as BaseUniforms,
+} from './TileLayerBase.js';
+
+export const Uniforms = {
+  ...BaseUniforms,
+  TILE_MASK_TEXTURE: 'u_depthMask',
+  TILE_ZOOM_LEVEL: 'u_tileZoomLevel',
+};
+
+export const Attributes = {
+  POSITION: 'a_position',
+};
 
 /**
- * @typedef {import('../../render/webgl/VectorStyleRenderer.js').VectorStyle} VectorStyle
+ * @typedef {import('../../render/webgl/VectorStyleRenderer.js').AsShaders} StyleAsShaders
+ */
+/**
+ * @typedef {import('../../render/webgl/VectorStyleRenderer.js').AsRule} StyleAsRule
  */
 
 /**
  * @typedef {Object} Options
- * @property {VectorStyle|Array<VectorStyle>} style Vector style as literal style or shaders; can also accept an array of styles
+ * @property {import('../../style/flat.js').FlatStyleLike | Array<StyleAsShaders> | StyleAsShaders} style Flat vector style; also accepts shaders
+ * @property {import('../../style/flat.js').StyleVariables} [variables] Style variables. Each variable must hold a literal value (not
+ * an expression). These variables can be used as {@link import("../../expr/expression.js").ExpressionValue expressions} in the styles properties
+ * using the `['var', 'varName']` operator.
+ * @property {boolean} [disableHitDetection=false] Setting this to true will provide a slight performance boost, but will
+ * prevent all hit detection on the layer.
  * @property {number} [cacheSize=512] The vector tile cache size.
  */
 
@@ -42,13 +69,31 @@ class WebGLVectorTileLayerRenderer extends WebGLBaseTileLayerRenderer {
    * @param {Options} options Options.
    */
   constructor(tileLayer, options) {
-    super(tileLayer, options);
+    super(tileLayer, {
+      cacheSize: options.cacheSize,
+      uniforms: {
+        [Uniforms.PATTERN_ORIGIN]: [0, 0],
+        [Uniforms.TILE_MASK_TEXTURE]: () => this.tileMaskTarget_.getTexture(),
+      },
+    });
 
     /**
-     * @type {Array<VectorStyle>}
+     * @type {boolean}
+     * @private
+     */
+    this.hitDetectionEnabled_ = !options.disableHitDetection;
+
+    /**
+     * @type {Array<StyleAsRule | StyleAsShaders>}
      * @private
      */
     this.styles_ = [];
+
+    /**
+     * @type {import('../../style/flat.js').StyleVariables}
+     * @private
+     */
+    this.styleVariables_ = options.variables || {};
 
     /**
      * @type {Array<VectorStyleRenderer>}
@@ -65,14 +110,54 @@ class WebGLVectorTileLayerRenderer extends WebGLBaseTileLayerRenderer {
      */
     this.currentFrameStateTransform_ = createTransform();
 
+    /**
+     * @private
+     */
     this.tmpTransform_ = createTransform();
+    /**
+     * @private
+     */
     this.tmpMat4_ = createMat4();
+
+    /**
+     * @type {WebGLRenderTarget}
+     * @private
+     */
+    this.tileMaskTarget_ = null;
+
+    /**
+     * @private
+     */
+    this.tileMaskIndices_ = new WebGLArrayBuffer(
+      ELEMENT_ARRAY_BUFFER,
+      STATIC_DRAW,
+    );
+    this.tileMaskIndices_.fromArray([0, 1, 3, 1, 2, 3]);
+
+    /**
+     * @type {Array<import('../../webgl/Helper.js').AttributeDescription>}
+     * @private
+     */
+    this.tileMaskAttributes_ = [
+      {
+        name: Attributes.POSITION,
+        size: 2,
+        type: AttributeType.FLOAT,
+      },
+    ];
+
+    /**
+     * @type {WebGLProgram}
+     * @private
+     */
+    this.tileMaskProgram_;
 
     this.applyOptions_(options);
   }
 
   /**
    * @param {Options} options Options.
+   * @override
    */
   reset(options) {
     super.reset(options);
@@ -80,6 +165,7 @@ class WebGLVectorTileLayerRenderer extends WebGLBaseTileLayerRenderer {
     this.applyOptions_(options);
     if (this.helper) {
       this.createRenderers_();
+      this.initTileMask_();
     }
   }
 
@@ -88,24 +174,82 @@ class WebGLVectorTileLayerRenderer extends WebGLBaseTileLayerRenderer {
    * @private
    */
   applyOptions_(options) {
-    this.styles_ = Array.isArray(options.style)
-      ? options.style
-      : [options.style];
+    this.styles_ = breakDownFlatStyle(options.style);
   }
 
   /**
    * @private
    */
   createRenderers_() {
-    this.styleRenderers_ = this.styles_.map(
-      (style) => new VectorStyleRenderer(style, this.helper)
-    );
+    function addBuilderParams(builder) {
+      const exisitingDiscard = builder.getFragmentDiscardExpression();
+      const discardFromMask = `texture2D(${Uniforms.TILE_MASK_TEXTURE}, gl_FragCoord.xy / u_pixelRatio / u_viewportSizePx).r * 50. > ${Uniforms.TILE_ZOOM_LEVEL} + 0.5`;
+      builder.setFragmentDiscardExpression(
+        exisitingDiscard !== 'false'
+          ? `(${exisitingDiscard}) || (${discardFromMask})`
+          : discardFromMask,
+      );
+      builder.addUniform(`sampler2D ${Uniforms.TILE_MASK_TEXTURE}`);
+      builder.addUniform(`float ${Uniforms.TILE_ZOOM_LEVEL}`);
+    }
+
+    this.styleRenderers_ = this.styles_.map((style) => {
+      const isShaders = 'builder' in style;
+      /** @type {StyleAsShaders} */
+      let shaders;
+      if (!isShaders) {
+        const parseResult = parseLiteralStyle(
+          style.style,
+          this.styleVariables_,
+          style.filter,
+        );
+        addBuilderParams(parseResult.builder);
+        shaders = {
+          builder: parseResult.builder,
+          attributes: parseResult.attributes,
+          uniforms: parseResult.uniforms,
+        };
+      } else {
+        addBuilderParams(style.builder);
+        shaders = style;
+      }
+      return new VectorStyleRenderer(
+        shaders,
+        this.styleVariables_,
+        this.helper,
+        this.hitDetectionEnabled_,
+      );
+    });
   }
 
+  /**
+   * @private
+   */
+  initTileMask_() {
+    this.tileMaskTarget_ = new WebGLRenderTarget(this.helper);
+    const builder = new ShaderBuilder()
+      .setFillColorExpression(
+        `vec4(${Uniforms.TILE_ZOOM_LEVEL} / 50., 0., 0., 1.)`,
+      )
+      .addUniform(`float ${Uniforms.TILE_ZOOM_LEVEL}`);
+    this.tileMaskProgram_ = this.helper.getProgram(
+      builder.getFillFragmentShader(),
+      builder.getFillVertexShader(),
+    );
+    this.helper.flushBufferData(this.tileMaskIndices_);
+  }
+
+  /**
+   * @override
+   */
   afterHelperCreated() {
     this.createRenderers_();
+    this.initTileMask_();
   }
 
+  /**
+   * @override
+   */
   createTileRepresentation(options) {
     const tileRep = new TileGeometry(options, this.styleRenderers_);
     // redraw the layer when the tile is ready
@@ -119,40 +263,101 @@ class WebGLVectorTileLayerRenderer extends WebGLBaseTileLayerRenderer {
     return tileRep;
   }
 
+  /**
+   * @override
+   */
   beforeTilesRender(frameState, tilesWithAlpha) {
     super.beforeTilesRender(frameState, true); // always consider that tiles need alpha blending
     this.helper.makeProjectionTransform(
       frameState,
-      this.currentFrameStateTransform_
+      this.currentFrameStateTransform_,
     );
+  }
+
+  /**
+   * @override
+   */
+  beforeTilesMaskRender(frameState) {
+    this.helper.makeProjectionTransform(
+      frameState,
+      this.currentFrameStateTransform_,
+    );
+    const pixelRatio = frameState.pixelRatio;
+    const size = frameState.size;
+    this.tileMaskTarget_.setSize([size[0] * pixelRatio, size[1] * pixelRatio]);
+    this.helper.prepareDrawToRenderTarget(
+      frameState,
+      this.tileMaskTarget_,
+      true,
+      true,
+    );
+    this.helper.useProgram(this.tileMaskProgram_, frameState);
+    setFromTransform(this.tmpTransform_, this.currentFrameStateTransform_);
+    this.helper.setUniformMatrixValue(
+      Uniforms.PROJECTION_MATRIX,
+      mat4FromTransform(this.tmpMat4_, this.tmpTransform_),
+    );
+    makeInverseTransform(this.tmpTransform_, this.currentFrameStateTransform_);
+    this.helper.setUniformMatrixValue(
+      Uniforms.SCREEN_TO_WORLD_MATRIX,
+      mat4FromTransform(this.tmpMat4_, this.tmpTransform_),
+    );
+    return true;
+  }
+
+  /**
+   * @override
+   */
+  renderTileMask(tileRepresentation, tileZ, extent, depth) {
+    if (!tileRepresentation.ready) {
+      return;
+    }
+    this.helper.setUniformFloatValue(Uniforms.DEPTH, depth);
+    this.helper.setUniformFloatValue(Uniforms.TILE_ZOOM_LEVEL, tileZ);
+    this.helper.setUniformFloatVec4(Uniforms.RENDER_EXTENT, extent);
+    this.helper.setUniformFloatValue(Uniforms.GLOBAL_ALPHA, 1);
+    this.helper.bindBuffer(
+      /** @type {TileGeometry} */ (tileRepresentation).maskVertices,
+    );
+    this.helper.bindBuffer(this.tileMaskIndices_);
+    this.helper.enableAttributes(this.tileMaskAttributes_);
+    const renderCount = this.tileMaskIndices_.getSize();
+    this.helper.drawElements(0, renderCount);
   }
 
   /**
    * @param {number} alpha Alpha value of the tile
    * @param {import("../../extent.js").Extent} renderExtent Which extent to restrict drawing to
    * @param {import("../../transform.js").Transform} batchInvertTransform Inverse of the transformation in which tile geometries are expressed
+   * @param {number} tileZ Tile zoom level
+   * @param {number} depth Depth of the tile
    * @private
    */
-  applyUniforms_(alpha, renderExtent, batchInvertTransform) {
+  applyUniforms_(alpha, renderExtent, batchInvertTransform, tileZ, depth) {
     // world to screen matrix
     setFromTransform(this.tmpTransform_, this.currentFrameStateTransform_);
     multiplyTransform(this.tmpTransform_, batchInvertTransform);
     this.helper.setUniformMatrixValue(
       Uniforms.PROJECTION_MATRIX,
-      mat4FromTransform(this.tmpMat4_, this.tmpTransform_)
+      mat4FromTransform(this.tmpMat4_, this.tmpTransform_),
     );
 
     // screen to world matrix
     makeInverseTransform(this.tmpTransform_, this.currentFrameStateTransform_);
     this.helper.setUniformMatrixValue(
       Uniforms.SCREEN_TO_WORLD_MATRIX,
-      mat4FromTransform(this.tmpMat4_, this.tmpTransform_)
+      mat4FromTransform(this.tmpMat4_, this.tmpTransform_),
     );
 
     this.helper.setUniformFloatValue(Uniforms.GLOBAL_ALPHA, alpha);
+    this.helper.setUniformFloatValue(Uniforms.DEPTH, depth);
+    this.helper.setUniformFloatValue(Uniforms.TILE_ZOOM_LEVEL, tileZ);
     this.helper.setUniformFloatVec4(Uniforms.RENDER_EXTENT, renderExtent);
   }
 
+  /**
+   * @override
+   */
   renderTile(
     tileRepresentation,
     tileTransform,
@@ -164,21 +369,20 @@ class WebGLVectorTileLayerRenderer extends WebGLBaseTileLayerRenderer {
     tileExtent,
     depth,
     gutter,
-    alpha
+    alpha,
   ) {
     const gutterExtent = getIntersection(tileExtent, renderExtent, tileExtent);
-
+    const tileZ = tileRepresentation.tile.getTileCoord()[0];
     for (let i = 0, ii = this.styleRenderers_.length; i < ii; i++) {
       const renderer = this.styleRenderers_[i];
       const buffers = tileRepresentation.buffers[i];
-      if (!buffers) {
-        continue;
-      }
       renderer.render(buffers, frameState, () => {
         this.applyUniforms_(
           alpha,
           gutterExtent,
-          buffers.invertVerticesTransform
+          buffers.invertVerticesTransform,
+          tileZ,
+          depth,
         );
       });
     }
@@ -192,6 +396,7 @@ class WebGLVectorTileLayerRenderer extends WebGLBaseTileLayerRenderer {
 
   /**
    * Clean up.
+   * @override
    */
   disposeInternal() {
     super.disposeInternal();

@@ -1,16 +1,16 @@
 /**
  * @module ol/render
  */
-import CanvasImmediateRenderer from './render/canvas/Immediate.js';
 import {DEVICE_PIXEL_RATIO} from './has.js';
+import {getTransformFromProjections, getUserProjection} from './proj.js';
+import CanvasImmediateRenderer from './render/canvas/Immediate.js';
+import {getSquaredTolerance} from './renderer/vector.js';
 import {
   apply as applyTransform,
   create as createTransform,
   multiply as multiplyTransform,
   scale as scaleTransform,
 } from './transform.js';
-import {getSquaredTolerance} from './renderer/vector.js';
-import {getTransformFromProjections, getUserProjection} from './proj.js';
 
 /**
  * @typedef {Object} State
@@ -102,18 +102,18 @@ export function getVectorContext(event) {
   const frameState = event.frameState;
   const transform = multiplyTransform(
     event.inversePixelTransform.slice(),
-    frameState.coordinateToPixelTransform
+    frameState.coordinateToPixelTransform,
   );
   const squaredTolerance = getSquaredTolerance(
     frameState.viewState.resolution,
-    canvasPixelRatio
+    canvasPixelRatio,
   );
   let userTransform;
   const userProjection = getUserProjection();
   if (userProjection) {
     userTransform = getTransformFromProjections(
       userProjection,
-      frameState.viewState.projection
+      frameState.viewState.projection,
     );
   }
 
@@ -124,7 +124,7 @@ export function getVectorContext(event) {
     transform,
     frameState.viewState.rotation,
     squaredTolerance,
-    userTransform
+    userTransform,
   );
 }
 

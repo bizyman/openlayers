@@ -1,9 +1,9 @@
-import CopyPlugin from 'copy-webpack-plugin';
-import ExampleBuilder from './example-builder.js';
-import TerserPlugin from 'terser-webpack-plugin';
 import fs from 'fs';
 import path, {dirname} from 'path';
 import {fileURLToPath} from 'url';
+import CopyPlugin from 'copy-webpack-plugin'; // eslint-disable-line import/default
+import TerserPlugin from 'terser-webpack-plugin';
+import ExampleBuilder from './example-builder.js';
 
 const src = path.join(dirname(fileURLToPath(import.meta.url)), '..');
 const root = path.join(src, '..');
@@ -84,7 +84,7 @@ export default {
       https: false,
     },
     alias: {
-      // allow imports from 'ol/module' instead of specifiying the source path
+      // allow imports from 'ol/module' instead of specifying the source path
       ol: path.join(root, 'src', 'ol'),
     },
   },

@@ -1,6 +1,6 @@
 import Feature from '../../../../../src/ol/Feature.js';
-import LineString from '../../../../../src/ol/geom/LineString.js';
 import OSMXML from '../../../../../src/ol/format/OSMXML.js';
+import LineString from '../../../../../src/ol/geom/LineString.js';
 import Point from '../../../../../src/ol/geom/Point.js';
 import {get as getProjection, transform} from '../../../../../src/ol/proj.js';
 
@@ -155,7 +155,7 @@ describe('ol.format.OSMXML', function () {
       const g = f.getGeometry();
       expect(g).to.be.an(Point);
       expect(g.getCoordinates()).to.eql(
-        transform([2, 1], 'EPSG:4326', 'EPSG:3857')
+        transform([2, 1], 'EPSG:4326', 'EPSG:3857'),
       );
     });
   });

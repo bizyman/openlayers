@@ -1,14 +1,14 @@
 /**
  * @module ol/proj/proj4
  */
-import Projection from './Projection.js';
 import {
   addCoordinateTransforms,
   addEquivalentProjections,
   addProjection,
   createSafeCoordinateTransform,
-  get,
 } from '../proj.js';
+import Projection from './Projection.js';
+import {get as getCachedProjection} from './projections.js';
 import {get as getTransform} from './transforms.js';
 
 /**
@@ -49,7 +49,7 @@ export function register(proj4) {
   let i, j;
   for (i = 0; i < len; ++i) {
     const code = projCodes[i];
-    if (!get(code)) {
+    if (!getCachedProjection(code)) {
       const def = proj4.defs(code);
       let units = /** @type {import("./Units.js").Units} */ (def.units);
       if (!units && def.projName === 'longlat') {
@@ -61,16 +61,16 @@ export function register(proj4) {
           axisOrientation: def.axis,
           metersPerUnit: def.to_meter,
           units,
-        })
+        }),
       );
     }
   }
   for (i = 0; i < len; ++i) {
     const code1 = projCodes[i];
-    const proj1 = get(code1);
+    const proj1 = getCachedProjection(code1);
     for (j = 0; j < len; ++j) {
       const code2 = projCodes[j];
-      const proj2 = get(code2);
+      const proj2 = getCachedProjection(code2);
       if (!getTransform(code1, code2)) {
         if (proj4.defs[code1] === proj4.defs[code2]) {
           addEquivalentProjections([proj1, proj2]);
@@ -80,7 +80,7 @@ export function register(proj4) {
             proj1,
             proj2,
             createSafeCoordinateTransform(proj1, proj2, transform.forward),
-            createSafeCoordinateTransform(proj2, proj1, transform.inverse)
+            createSafeCoordinateTransform(proj2, proj1, transform.inverse),
           );
         }
       }
@@ -148,13 +148,13 @@ export async function fromEPSGCode(code) {
 
   const epsgCode = 'EPSG:' + code;
   if (proj4.defs(epsgCode)) {
-    return get(epsgCode);
+    return getCachedProjection(epsgCode);
   }
 
   proj4.defs(epsgCode, await epsgLookup(code));
   register(proj4);
 
-  return get(epsgCode);
+  return getCachedProjection(epsgCode);
 }
 
 /**
@@ -170,18 +170,19 @@ export async function fromEPSGCode(code) {
 export function epsgLookupMapTiler(key) {
   return async function (code) {
     const response = await fetch(
-      `https://api.maptiler.com/coordinates/search/code:${code}.json?transformations=true&exports=true&key=${key}`
+      `https://api.maptiler.com/coordinates/search/code:${code}.json?transformations=true&exports=true&key=${key}`,
     );
     if (!response.ok) {
       throw new Error(
-        `Unexpected response from maptiler.com: ${response.status}`
+        `Unexpected response from maptiler.com: ${response.status}`,
       );
     }
     return response.json().then((json) => {
       const results = json['results'];
       if (results?.length > 0) {
         const result = results.filter(
-          (r) => r['id']?.['authority'] === 'EPSG' && r['id']?.['code'] === code
+          (r) =>
+            r['id']?.['authority'] === 'EPSG' && r['id']?.['code'] === code,
         )[0];
         if (result) {
           const transforms = result['transformations'];
@@ -193,7 +194,7 @@ export function epsgLookupMapTiler(key) {
                 (t) =>
                   t['id']?.['authority'] === defaultTransform?.['authority'] &&
                   t['id']?.['code'] === defaultTransform?.['code'] &&
-                  t['grids']?.length === 0
+                  t['grids']?.length === 0,
               ).length > 0
             ) {
               return result['exports']?.['proj4'];
@@ -206,7 +207,7 @@ export function epsgLookupMapTiler(key) {
                   t['target_crs']?.['authority'] === 'EPSG' &&
                   t['target_crs']?.['code'] === 4326 &&
                   t['deprecated'] === false &&
-                  t['usable'] === true
+                  t['usable'] === true,
               )
               .sort((t1, t2) => t1['accuracy'] - t2['accuracy'])[0]?.[
               'exports'

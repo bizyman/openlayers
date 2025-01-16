@@ -1,7 +1,7 @@
-import BingMaps from '../src/ol/source/BingMaps.js';
 import Map from '../src/ol/Map.js';
-import TileLayer from '../src/ol/layer/Tile.js';
 import View from '../src/ol/View.js';
+import TileLayer from '../src/ol/layer/Tile.js';
+import BingMaps from '../src/ol/source/BingMaps.js';
 
 const styles = [
   'RoadOnDemand',
@@ -22,7 +22,7 @@ for (i = 0, ii = styles.length; i < ii; ++i) {
         imagerySet: styles[i],
         // placeholderTiles: false, // Optional. Prevents showing of BingMaps placeholder tiles
       }),
-    })
+    }),
   );
 }
 const map = new Map({

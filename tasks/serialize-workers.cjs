@@ -1,11 +1,9 @@
-/* eslint-disable import/no-commonjs */
-
 const path = require('path');
-const resolve = require('@rollup/plugin-node-resolve').nodeResolve;
 const common = require('@rollup/plugin-commonjs');
-const rollup = require('rollup');
-const terser = require('rollup-plugin-terser').terser;
+const resolve = require('@rollup/plugin-node-resolve').nodeResolve;
+const terser = require('@rollup/plugin-terser');
 const fse = require('fs-extra');
+const rollup = require('rollup');
 
 async function build(input, {minify = true} = {}) {
   const plugins = [
@@ -15,7 +13,10 @@ async function build(input, {minify = true} = {}) {
         if (id !== input) {
           return null;
         }
-        return code.replace('export let create;', '');
+        return code.replace(
+          '/** @type {function(): Worker} */ export let create;',
+          '',
+        );
       },
     },
     common(),
@@ -43,7 +44,9 @@ async function build(input, {minify = true} = {}) {
   const bundle = await rollup.rollup({
     input,
     plugins,
-    inlineDynamicImports: true,
+    output: {
+      inlineDynamicImports: true,
+    },
   });
   const {output} = await bundle.generate({format: 'es'});
 

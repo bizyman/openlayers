@@ -1,5 +1,5 @@
-import BingMaps, {quadKey} from '../../../../../src/ol/source/BingMaps.js';
 import {unByKey} from '../../../../../src/ol/Observable.js';
+import BingMaps, {quadKey} from '../../../../../src/ol/source/BingMaps.js';
 
 describe('ol/source/BingMaps', function () {
   describe('quadKey()', function () {
@@ -66,42 +66,42 @@ describe('ol/source/BingMaps', function () {
       tileUrl = source.tileUrlFunction(
         tileGrid.getTileCoordForCoordAndZ(coordinate, 1),
         1,
-        projection
+        projection,
       );
       expect(tileUrl.match(regex)[1]).to.equal(quadKey([1, 1, 0]));
 
       tileUrl = source.tileUrlFunction(
         tileGrid.getTileCoordForCoordAndZ(coordinate, 2),
         1,
-        projection
+        projection,
       );
       expect(tileUrl.match(regex)[1]).to.equal(quadKey([2, 2, 1]));
 
       tileUrl = source.tileUrlFunction(
         tileGrid.getTileCoordForCoordAndZ(coordinate, 3),
         1,
-        projection
+        projection,
       );
       expect(tileUrl.match(regex)[1]).to.equal(quadKey([3, 4, 2]));
 
       tileUrl = source.tileUrlFunction(
         tileGrid.getTileCoordForCoordAndZ(coordinate, 4),
         1,
-        projection
+        projection,
       );
       expect(tileUrl.match(regex)[1]).to.equal(quadKey([4, 8, 5]));
 
       tileUrl = source.tileUrlFunction(
         tileGrid.getTileCoordForCoordAndZ(coordinate, 5),
         1,
-        projection
+        projection,
       );
       expect(tileUrl.match(regex)[1]).to.equal(quadKey([5, 16, 11]));
 
       tileUrl = source.tileUrlFunction(
         tileGrid.getTileCoordForCoordAndZ(coordinate, 6),
         1,
-        projection
+        projection,
       );
       expect(tileUrl.match(regex)[1]).to.equal(quadKey([6, 33, 22]));
 

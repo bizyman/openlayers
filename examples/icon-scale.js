@@ -1,11 +1,17 @@
 import Feature from '../src/ol/Feature.js';
 import Map from '../src/ol/Map.js';
-import Point from '../src/ol/geom/Point.js';
-import TileJSON from '../src/ol/source/TileJSON.js';
-import VectorSource from '../src/ol/source/Vector.js';
 import View from '../src/ol/View.js';
-import {Circle, Fill, Icon, Stroke, Style, Text} from '../src/ol/style.js';
-import {Tile as TileLayer, Vector as VectorLayer} from '../src/ol/layer.js';
+import Point from '../src/ol/geom/Point.js';
+import TileLayer from '../src/ol/layer/Tile.js';
+import VectorLayer from '../src/ol/layer/Vector.js';
+import OGCMapTile from '../src/ol/source/OGCMapTile.js';
+import VectorSource from '../src/ol/source/Vector.js';
+import Circle from '../src/ol/style/Circle.js';
+import Fill from '../src/ol/style/Fill.js';
+import Icon from '../src/ol/style/Icon.js';
+import Stroke from '../src/ol/style/Stroke.js';
+import Style from '../src/ol/style/Style.js';
+import Text from '../src/ol/style/Text.js';
 
 const iconFeature = new Feature({
   geometry: new Point([0, 0]),
@@ -53,8 +59,8 @@ const vectorLayer = new VectorLayer({
 });
 
 const rasterLayer = new TileLayer({
-  source: new TileJSON({
-    url: 'https://a.tiles.mapbox.com/v3/aj.1x1-degrees.json?secure=1',
+  source: new OGCMapTile({
+    url: 'https://maps.gnosis.earth/ogcapi/collections/NaturalEarth:raster:HYP_HR_SR_OB_DR/map/tiles/WebMercatorQuad',
     crossOrigin: '',
   }),
 });

@@ -1,17 +1,17 @@
 import Feature from '../../../../../../src/ol/Feature.js';
 import LineString from '../../../../../../src/ol/geom/LineString.js';
-import MixedGeometryBatch from '../../../../../../src/ol/render/webgl/MixedGeometryBatch.js';
 import Point from '../../../../../../src/ol/geom/Point.js';
 import Polygon from '../../../../../../src/ol/geom/Polygon.js';
-import {
-  compose as composeTransform,
-  create as createTransform,
-} from '../../../../../../src/ol/transform.js';
+import MixedGeometryBatch from '../../../../../../src/ol/render/webgl/MixedGeometryBatch.js';
 import {
   generateLineStringRenderInstructions,
   generatePointRenderInstructions,
   generatePolygonRenderInstructions,
 } from '../../../../../../src/ol/render/webgl/renderinstructions.js';
+import {
+  compose as composeTransform,
+  create as createTransform,
+} from '../../../../../../src/ol/transform.js';
 
 const SAMPLE_FRAMESTATE = {
   viewState: {
@@ -29,7 +29,7 @@ const SAMPLE_TRANSFORM = composeTransform(
   2 / (SAMPLE_FRAMESTATE.viewState.resolution * SAMPLE_FRAMESTATE.size[1]),
   -SAMPLE_FRAMESTATE.viewState.rotation,
   -SAMPLE_FRAMESTATE.viewState.center[0],
-  -SAMPLE_FRAMESTATE.viewState.center[1]
+  -SAMPLE_FRAMESTATE.viewState.center[1],
 );
 
 describe('Render instructions utilities', function () {
@@ -81,11 +81,14 @@ describe('Render instructions utilities', function () {
       new Feature({
         test: 4000,
         test2: [88, 99, 0],
-        geometry: new LineString([
-          [100, 200],
-          [300, 400],
-          [500, 600],
-        ]),
+        geometry: new LineString(
+          [
+            [100, 200, 1],
+            [300, 400, 2],
+            [500, 600, 3],
+          ],
+          'XYM',
+        ),
       }),
     ]);
   });
@@ -98,7 +101,7 @@ describe('Render instructions utilities', function () {
         mixedBatch.pointBatch,
         new Float32Array(0),
         customAttributes,
-        SAMPLE_TRANSFORM
+        SAMPLE_TRANSFORM,
       );
     });
     it('generates render instructions', function () {
@@ -114,13 +117,13 @@ describe('Render instructions utilities', function () {
         mixedBatch.lineStringBatch,
         new Float32Array(0),
         customAttributes,
-        SAMPLE_TRANSFORM
+        SAMPLE_TRANSFORM,
       );
     });
     it('generates render instructions', function () {
       expect(Array.from(renderInstructions)).to.eql([
-        3000, 66, 77, 88, 5, 2, 0, 4, 0, 6, 2, 4, 6, 2, 0, 4000, 88, 99, 0, 3,
-        20, 38, 60, 78, 100, 118,
+        3000, 66, 77, 88, 5, 2, 0, 0, 4, 0, 0, 6, 2, 0, 4, 6, 0, 2, 0, 0, 4000,
+        88, 99, 0, 3, 20, 38, 1, 60, 78, 2, 100, 118, 3,
       ]);
     });
   });
@@ -131,12 +134,36 @@ describe('Render instructions utilities', function () {
         mixedBatch.polygonBatch,
         new Float32Array(0),
         customAttributes,
-        SAMPLE_TRANSFORM
+        SAMPLE_TRANSFORM,
       );
     });
     it('generates render instructions', function () {
       expect(Array.from(renderInstructions)).to.eql([
         3000, 66, 77, 88, 1, 5, 2, 0, 4, 0, 6, 2, 4, 6, 2, 0,
+      ]);
+    });
+  });
+
+  describe('custom attribute returning an array', () => {
+    beforeEach(function () {
+      renderInstructions = generatePointRenderInstructions(
+        mixedBatch.pointBatch,
+        new Float32Array(0),
+        [
+          {
+            name: 'test',
+            size: 4,
+            callback: function () {
+              return [0, 1, 2, 3];
+            },
+          },
+        ],
+        SAMPLE_TRANSFORM,
+      );
+    });
+    it('generates render instructions', function () {
+      expect(Array.from(renderInstructions)).to.eql([
+        2, 2, 0, 1, 2, 3, 6, 6, 0, 1, 2, 3,
       ]);
     });
   });

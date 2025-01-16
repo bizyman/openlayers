@@ -1,29 +1,29 @@
+import proj4 from 'proj4';
 import Collection from '../../../../../src/ol/Collection.js';
 import Feature from '../../../../../src/ol/Feature.js';
-import Interaction from '../../../../../src/ol/interaction/Interaction.js';
 import Map from '../../../../../src/ol/Map.js';
 import MapBrowserEvent from '../../../../../src/ol/MapBrowserEvent.js';
-import Translate, {
-  TranslateEvent,
-} from '../../../../../src/ol/interaction/Translate.js';
-import VectorLayer from '../../../../../src/ol/layer/Vector.js';
-import VectorSource from '../../../../../src/ol/source/Vector.js';
 import View from '../../../../../src/ol/View.js';
-import proj4 from 'proj4';
+import {shiftKeyOnly} from '../../../../../src/ol/events/condition.js';
 import {
   Circle,
   GeometryCollection,
   Point,
   Polygon,
 } from '../../../../../src/ol/geom.js';
+import Interaction from '../../../../../src/ol/interaction/Interaction.js';
+import Translate, {
+  TranslateEvent,
+} from '../../../../../src/ol/interaction/Translate.js';
+import VectorLayer from '../../../../../src/ol/layer/Vector.js';
+import {register} from '../../../../../src/ol/proj/proj4.js';
 import {
   addCommon,
   clearAllProjections,
   clearUserProjection,
   setUserProjection,
 } from '../../../../../src/ol/proj.js';
-import {register} from '../../../../../src/ol/proj/proj4.js';
-import {shiftKeyOnly} from '../../../../../src/ol/events/condition.js';
+import VectorSource from '../../../../../src/ol/source/Vector.js';
 
 describe('ol.interaction.Translate', function () {
   let target, map, source, features;
@@ -66,8 +66,7 @@ describe('ol.interaction.Translate', function () {
   });
 
   afterEach(function () {
-    map.dispose();
-    document.body.removeChild(target);
+    disposeMap(map);
     clearUserProjection();
     delete proj4.defs['EPSG:32637'];
     clearAllProjections();
@@ -102,8 +101,8 @@ describe('ol.interaction.Translate', function () {
   /**
    * Tracks events triggered by the interaction as well as feature
    * modifications. Helper function to
-   * @param {ol.Feature} feature Translated feature.
-   * @param {ol.interaction.Translate} interaction The interaction.
+   * @param {Feature} feature Translated feature.
+   * @param {Translate} interaction The interaction.
    * @return {Array<TranslateEvent|string>} events
    */
   function trackEvents(feature, interaction) {
@@ -125,7 +124,7 @@ describe('ol.interaction.Translate', function () {
    * that first and last event are correct TranslateEvents and that feature
    * modifications event are in between.
    * @param {Array<TranslateEvent|string>} events The events.
-   * @param {Array<ol.Feature>} features The features.
+   * @param {Array<Feature>} features The features.
    */
   function validateEvents(events, features) {
     const startevent = events[0];
@@ -328,7 +327,7 @@ describe('ol.interaction.Translate', function () {
               [30, 0],
             ],
           ]),
-        ])
+        ]),
       );
       source.addFeature(feature);
       map.once('postrender', function () {
@@ -359,7 +358,7 @@ describe('ol.interaction.Translate', function () {
     it('moves in a non-parallel user projection', function (done) {
       proj4.defs(
         'EPSG:32637',
-        '+proj=utm +zone=37 +datum=WGS84 +units=m +no_defs +type=crs'
+        '+proj=utm +zone=37 +datum=WGS84 +units=m +no_defs +type=crs',
       );
       register(proj4);
       const userProjection = 'EPSG:32637';
@@ -377,7 +376,7 @@ describe('ol.interaction.Translate', function () {
               [30, 0],
             ],
           ]),
-        ]).transform(viewProjection, userProjection)
+        ]).transform(viewProjection, userProjection),
       );
       source.addFeature(feature);
       map.once('postrender', function () {

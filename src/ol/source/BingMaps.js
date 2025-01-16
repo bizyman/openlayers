@@ -2,12 +2,12 @@
  * @module ol/source/BingMaps
  */
 
-import TileImage from './TileImage.js';
 import {applyTransform, intersects} from '../extent.js';
-import {createFromTileUrlFunctions} from '../tileurlfunction.js';
+import {get as getProjection, getTransformFromProjections} from '../proj.js';
 import {createOrUpdate} from '../tilecoord.js';
 import {createXYZ, extentFromProjection} from '../tilegrid.js';
-import {get as getProjection, getTransformFromProjections} from '../proj.js';
+import {createFromTileUrlFunctions} from '../tileurlfunction.js';
+import TileImage from './TileImage.js';
 
 /**
  * @param {import('../tilecoord.js').TileCoord} tileCoord Tile coord.
@@ -46,7 +46,7 @@ const TOS_ATTRIBUTION =
 
 /**
  * @typedef {Object} Options
- * @property {number} [cacheSize] Initial tile cache size. Will auto-grow to hold at least the number of tiles in the viewport.
+ * @property {number} [cacheSize] Deprecated.  Use the cacheSize option on the layer instead.
  * @property {boolean} [hidpi=false] If `true` hidpi tiles will be requested.
  * @property {string} [culture='en-us'] Culture code.
  * @property {string} key Bing Maps API key. Get yours at https://www.bingmapsportal.com/.
@@ -68,8 +68,9 @@ const TOS_ATTRIBUTION =
  * @property {number|import("../array.js").NearestDirectionFunction} [zDirection=0]
  * Choose whether to use tiles with a higher or lower zoom level when between integer
  * zoom levels. See {@link module:ol/tilegrid/TileGrid~TileGrid#getZForResolution}.
- * @property {boolean} placeholderTiles Whether to show BingMaps placeholder tiles when zoomed past the maximum level provided in an area. When `false`, requests beyond
- * the maximum zoom level will return no tile. When `true`, the placeholder tile will be returned.
+ * @property {boolean} [placeholderTiles] Whether to show BingMaps placeholder tiles when zoomed past the maximum level provided in an area. When `false`, requests beyond
+ * the maximum zoom level will return no tile. When `true`, the placeholder tile will be returned. When not set, the default behaviour of the imagery set takes place,
+ * which is unique for each imagery set in BingMaps.
  */
 
 /**
@@ -125,7 +126,6 @@ class BingMaps extends TileImage {
       cacheSize: options.cacheSize,
       crossOrigin: 'anonymous',
       interpolate: options.interpolate,
-      opaque: true,
       projection: getProjection('EPSG:3857'),
       reprojectionErrorThreshold: options.reprojectionErrorThreshold,
       state: 'loading',
@@ -168,7 +168,7 @@ class BingMaps extends TileImage {
 
     /**
      * @private
-     * @type {boolean}
+     * @type {boolean|undefined}
      */
     this.placeholderTiles_ = options.placeholderTiles;
 
@@ -264,10 +264,10 @@ class BingMaps extends TileImage {
               tileCoord[0],
               tileCoord[1],
               tileCoord[2],
-              quadKeyTileCoord
+              quadKeyTileCoord,
             );
             const url = new URL(
-              imageUrl.replace('{quadkey}', quadKey(quadKeyTileCoord))
+              imageUrl.replace('{quadkey}', quadKey(quadKeyTileCoord)),
             );
             const params = url.searchParams;
             if (hidpi) {
@@ -282,13 +282,13 @@ class BingMaps extends TileImage {
             return url.toString();
           }
         );
-      })
+      }),
     );
 
     if (resource.imageryProviders) {
       const transform = getTransformFromProjections(
         getProjection('EPSG:4326'),
-        this.getProjection()
+        this.getProjection(),
       );
 
       this.setAttributions((frameState) => {
@@ -297,11 +297,11 @@ class BingMaps extends TileImage {
         const tileGrid = this.getTileGrid();
         const z = tileGrid.getZForResolution(
           viewState.resolution,
-          this.zDirection
+          this.zDirection,
         );
         const tileCoord = tileGrid.getTileCoordForCoordAndZ(
           viewState.center,
-          z
+          z,
         );
         const zoom = tileCoord[0];
         resource.imageryProviders.map(function (imageryProvider) {

@@ -1,8 +1,8 @@
 /**
  * @module ol/interaction/DblClickDragZoom
  */
-import Interaction from './Interaction.js';
 import MapBrowserEventType from '../MapBrowserEventType.js';
+import Interaction from './Interaction.js';
 
 /**
  * @typedef {Object} Options
@@ -15,7 +15,7 @@ import MapBrowserEventType from '../MapBrowserEventType.js';
 
 /**
  * @classdesc
- * Allows the user to zoom the map by double tap/clik then drag up/down
+ * Allows the user to zoom the map by double tap/click then drag up/down
  * with one finger/left mouse.
  * @api
  */
@@ -27,7 +27,7 @@ class DblClickDragZoom extends Interaction {
     const options = opt_options ? opt_options : {};
 
     super(
-      /** @type {import("./Interaction.js").InteractionOptions} */ (options)
+      /** @type {import("./Interaction.js").InteractionOptions} */ (options),
     );
 
     if (options.stopDown) {
@@ -59,6 +59,12 @@ class DblClickDragZoom extends Interaction {
     this.handlingDoubleDownSequence_ = false;
 
     /**
+     * @type {ReturnType<typeof setTimeout>}
+     * @private
+     */
+    this.doubleTapTimeoutId_ = undefined;
+
+    /**
      * @type {!Object<string, PointerEvent>}
      * @private
      */
@@ -78,6 +84,7 @@ class DblClickDragZoom extends Interaction {
    * @param {import("../MapBrowserEvent.js").default} mapBrowserEvent Map browser event.
    * @return {boolean} `false` to stop event propagation.
    * @api
+   * @override
    */
   handleEvent(mapBrowserEvent) {
     if (!mapBrowserEvent.originalEvent) {
@@ -104,7 +111,7 @@ class DblClickDragZoom extends Interaction {
           stopEvent = this.stopDown(handled);
         } else {
           stopEvent = this.stopDown(false);
-          this.waitForDblTap();
+          this.waitForDblTap_();
         }
       }
     }
@@ -210,8 +217,9 @@ class DblClickDragZoom extends Interaction {
 
   /**
    * Wait the second double finger tap.
+   * @private
    */
-  waitForDblTap() {
+  waitForDblTap_() {
     if (this.doubleTapTimeoutId_ !== undefined) {
       // double-click
       clearTimeout(this.doubleTapTimeoutId_);
@@ -219,8 +227,8 @@ class DblClickDragZoom extends Interaction {
     } else {
       this.handlingDoubleDownSequence_ = true;
       this.doubleTapTimeoutId_ = setTimeout(
-        this.endInteraction.bind(this),
-        250
+        this.endInteraction_.bind(this),
+        250,
       );
     }
   }
@@ -228,7 +236,7 @@ class DblClickDragZoom extends Interaction {
   /**
    * @private
    */
-  endInteraction() {
+  endInteraction_() {
     this.handlingDoubleDownSequence_ = false;
     this.doubleTapTimeoutId_ = undefined;
   }

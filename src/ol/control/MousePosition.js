@@ -2,7 +2,8 @@
  * @module ol/control/MousePosition
  */
 
-import Control from './Control.js';
+import {wrapX} from '../coordinate.js';
+import {listen} from '../events.js';
 import EventType from '../pointer/EventType.js';
 import {
   get as getProjection,
@@ -10,8 +11,7 @@ import {
   getUserProjection,
   identityTransform,
 } from '../proj.js';
-import {listen} from '../events.js';
-import {wrapX} from '../coordinate.js';
+import Control from './Control.js';
 
 /**
  * @type {string}
@@ -199,17 +199,18 @@ class MousePosition extends Control {
    * the map here.
    * @param {import("../Map.js").default|null} map Map.
    * @api
+   * @override
    */
   setMap(map) {
     super.setMap(map);
     if (map) {
       const viewport = map.getViewport();
       this.listenerKeys.push(
-        listen(viewport, EventType.POINTERMOVE, this.handleMouseMove, this)
+        listen(viewport, EventType.POINTERMOVE, this.handleMouseMove, this),
       );
       if (this.renderOnMouseOut_) {
         this.listenerKeys.push(
-          listen(viewport, EventType.POINTEROUT, this.handleMouseOut, this)
+          listen(viewport, EventType.POINTEROUT, this.handleMouseOut, this),
         );
       }
       this.updateHTML_(null);
@@ -250,7 +251,7 @@ class MousePosition extends Control {
         if (projection) {
           this.transform_ = getTransformFromProjections(
             this.mapProjection_,
-            projection
+            projection,
           );
         } else {
           this.transform_ = identityTransform;
@@ -263,7 +264,7 @@ class MousePosition extends Control {
         if (userProjection) {
           this.transform_ = getTransformFromProjections(
             this.mapProjection_,
-            userProjection
+            userProjection,
           );
         }
         this.transform_(coordinate, coordinate);

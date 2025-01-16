@@ -1,10 +1,10 @@
-import TileLayer from '../../../../src/ol/layer/Tile.js';
-import XYZ from '../../../../src/ol/source/XYZ.js';
-import {Map, View} from '../../../../src/ol/index.js';
 import {Point} from '../../../../src/ol/geom.js';
-import {RegularShape, Stroke, Style} from '../../../../src/ol/style.js';
-import {getVectorContext} from '../../../../src/ol/render.js';
+import {Map, View} from '../../../../src/ol/index.js';
+import TileLayer from '../../../../src/ol/layer/Tile.js';
 import {useGeographic} from '../../../../src/ol/proj.js';
+import {getVectorContext} from '../../../../src/ol/render.js';
+import XYZ from '../../../../src/ol/source/XYZ.js';
+import {RegularShape, Stroke, Style} from '../../../../src/ol/style.js';
 
 useGeographic();
 
@@ -29,7 +29,7 @@ layer.on('postrender', (event) => {
           color: 'red',
         }),
       }),
-    })
+    }),
   );
   context.drawGeometry(new Point(center));
 });

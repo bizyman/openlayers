@@ -1,16 +1,11 @@
 /**
  * @module ol/reproj/Image
  */
-import {ERROR_THRESHOLD} from './common.js';
 
-import EventType from '../events/EventType.js';
-import ImageBase from '../ImageBase.js';
+import ImageWrapper from '../Image.js';
 import ImageState from '../ImageState.js';
-import Triangulation from './Triangulation.js';
-import {
-  calculateSourceResolution,
-  render as renderReprojected,
-} from '../reproj.js';
+import EventType from '../events/EventType.js';
+import {listen, unlistenByKey} from '../events.js';
 import {
   getCenter,
   getHeight,
@@ -18,10 +13,16 @@ import {
   getWidth,
   isEmpty,
 } from '../extent.js';
-import {listen, unlistenByKey} from '../events.js';
+import {
+  calculateSourceResolution,
+  render as renderReprojected,
+} from '../reproj.js';
+import {fromResolutionLike} from '../resolution.js';
+import Triangulation from './Triangulation.js';
+import {ERROR_THRESHOLD} from './common.js';
 
 /**
- * @typedef {function(import("../extent.js").Extent, number, number) : import("../ImageBase.js").default} FunctionType
+ * @typedef {function(import("../extent.js").Extent, number, number) : import("../Image.js").default} FunctionType
  */
 
 /**
@@ -29,7 +30,7 @@ import {listen, unlistenByKey} from '../events.js';
  * Class encapsulating single reprojected image.
  * See {@link module:ol/source/Image~ImageSource}.
  */
-class ReprojImage extends ImageBase {
+class ReprojImage extends ImageWrapper {
   /**
    * @param {import("../proj/Projection.js").default} sourceProj Source projection (of the data).
    * @param {import("../proj/Projection.js").default} targetProj Target projection.
@@ -47,7 +48,7 @@ class ReprojImage extends ImageBase {
     targetResolution,
     pixelRatio,
     getImageFunction,
-    interpolate
+    interpolate,
   ) {
     let maxSourceExtent = sourceProj.getExtent();
     if (maxSourceExtent && sourceProj.canWrapX()) {
@@ -71,7 +72,7 @@ class ReprojImage extends ImageBase {
       sourceProj,
       targetProj,
       targetCenter,
-      targetResolution
+      targetResolution,
     );
 
     const errorThresholdInPixels = ERROR_THRESHOLD;
@@ -82,7 +83,7 @@ class ReprojImage extends ImageBase {
       limitedTargetExtent,
       maxSourceExtent,
       sourceResolution * errorThresholdInPixels,
-      targetResolution
+      targetResolution,
     );
 
     const sourceExtent = triangulation.calculateSourceExtent();
@@ -126,7 +127,7 @@ class ReprojImage extends ImageBase {
 
     /**
      * @private
-     * @type {import("../ImageBase.js").default}
+     * @type {import("../Image.js").default}
      */
     this.sourceImage_ = sourceImage;
 
@@ -157,6 +158,7 @@ class ReprojImage extends ImageBase {
 
   /**
    * Clean up.
+   * @override
    */
   disposeInternal() {
     if (this.state == ImageState.LOADING) {
@@ -167,6 +169,7 @@ class ReprojImage extends ImageBase {
 
   /**
    * @return {HTMLCanvasElement} Image.
+   * @override
    */
   getImage() {
     return this.canvas_;
@@ -187,12 +190,11 @@ class ReprojImage extends ImageBase {
     if (sourceState == ImageState.LOADED) {
       const width = getWidth(this.targetExtent_) / this.targetResolution_;
       const height = getHeight(this.targetExtent_) / this.targetResolution_;
-
       this.canvas_ = renderReprojected(
         width,
         height,
         this.sourcePixelRatio_,
-        this.sourceImage_.getResolution(),
+        fromResolutionLike(this.sourceImage_.getResolution()),
         this.maxSourceExtent_,
         this.targetResolution_,
         this.targetExtent_,
@@ -205,7 +207,8 @@ class ReprojImage extends ImageBase {
         ],
         0,
         undefined,
-        this.interpolate_
+        this.interpolate_,
+        true,
       );
     }
     this.state = sourceState;
@@ -214,6 +217,7 @@ class ReprojImage extends ImageBase {
 
   /**
    * Load not yet loaded URI.
+   * @override
    */
   load() {
     if (this.state == ImageState.IDLE) {
@@ -227,7 +231,7 @@ class ReprojImage extends ImageBase {
         this.sourceListenerKey_ = listen(
           this.sourceImage_,
           EventType.CHANGE,
-          function (e) {
+          (e) => {
             const sourceState = this.sourceImage_.getState();
             if (
               sourceState == ImageState.LOADED ||
@@ -237,7 +241,6 @@ class ReprojImage extends ImageBase {
               this.reproject_();
             }
           },
-          this
         );
         this.sourceImage_.load();
       }
@@ -249,7 +252,9 @@ class ReprojImage extends ImageBase {
    */
   unlistenSource_() {
     unlistenByKey(
-      /** @type {!import("../events.js").EventsKey} */ (this.sourceListenerKey_)
+      /** @type {!import("../events.js").EventsKey} */ (
+        this.sourceListenerKey_
+      ),
     );
     this.sourceListenerKey_ = null;
   }
